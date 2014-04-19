@@ -31,7 +31,8 @@
  * Constructor makes sure some things are set.
  */
 StreamCommand::StreamCommand()
-  : commandList(NULL),
+  : stream(&Serial),
+    commandList(NULL),
     commandCount(0),
     defaultHandler(NULL),
     term('\r'),           // default terminator for commands, CR character

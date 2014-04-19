@@ -9,7 +9,10 @@
 
 #define arduinoLED 13   // Arduino LED on board
 
-StreamCommand sCmd;     // The demo SerialCommand object
+//StreamCommand sCmd;     // The demo SerialCommand object, default stream: Serial, maxCommands: 10
+//StreamCommand sCmd(5);     // The demo SerialCommand object, default stream: Serial, maxCommands set to 5
+StreamCommand sCmd(&Serial, 5);     // The demo SerialCommand object, stream set to Serial, maxCommands set to 5
+
 
 void setup() {
   pinMode(arduinoLED, OUTPUT);      // Configure the onboard LED for output
@@ -17,30 +20,29 @@ void setup() {
 
   Serial.begin(9600);
 
- sCmd.setStream(&Serial);           // Use Serial port, in this case, not needed, as Serial is the default
- //sCmd.setStream(&Serial1);         // Use Serial1 port for Arduino Mega, for example
- 
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("ON",    LED_on);          // Turns LED on
   sCmd.addCommand("OFF",   LED_off);         // Turns LED off
   sCmd.addCommand("HELLO", sayHello);        // Echos the string argument back
   sCmd.addCommand("P",     processCommand);  // Converts two arguments to integers and echos them back
+  sCmd.addCommand("Q",     processCommand);  // This will register
+  sCmd.addCommand("R",     processCommand);  // This won't register due to the maxCommands set
   sCmd.setDefaultHandler(unrecognized);      // Handler for command that isn't matched  (says "What?")
-  Serial.println("Ready");
+  sCmd.setNullHandler(blankLine);            // Handler for a blank line  (says "No Input.")
+  sCmd.println("Ready");
 }
 
 void loop() {
   sCmd.readStream();     // We don't do much, just process serial commands
 }
 
-
 void LED_on() {
-  Serial.println("LED on");
+  sCmd.println("LED on");
   digitalWrite(arduinoLED, HIGH);
 }
 
 void LED_off() {
-  Serial.println("LED off");
+  sCmd.println("LED off");
   digitalWrite(arduinoLED, LOW);
 }
 
@@ -48,42 +50,46 @@ void sayHello() {
   char *arg;
   arg = sCmd.next();    // Get the next argument from the SerialCommand object buffer
   if (arg != NULL) {    // As long as it existed, take it
-    Serial.print("Hello ");
-    Serial.println(arg);
+    sCmd.print("Hello ");
+    sCmd.println(arg);
   }
   else {
-    Serial.println("Hello, whoever you are");
+    sCmd.println("Hello, whoever you are");
   }
 }
-
 
 void processCommand() {
   int aNumber;
   char *arg;
 
-  Serial.println("We're in processCommand");
+  sCmd.println("We're in processCommand");
   arg = sCmd.next();
   if (arg != NULL) {
     aNumber = atoi(arg);    // Converts a char string to an integer
-    Serial.print("First argument was: ");
-    Serial.println(aNumber);
+    sCmd.print("First argument was: ");
+    sCmd.println(aNumber);
   }
   else {
-    Serial.println("No arguments");
+    sCmd.println("No arguments");
   }
 
   arg = sCmd.next();
   if (arg != NULL) {
     aNumber = atol(arg);
-    Serial.print("Second argument was: ");
-    Serial.println(aNumber);
+    sCmd.print("Second argument was: ");
+    sCmd.println(aNumber);
   }
   else {
-    Serial.println("No second argument");
+    sCmd.println("No second argument");
   }
 }
 
 // This gets set as the default handler, and gets called when no other command matches.
 void unrecognized(const char *command) {
-  Serial.println("What?");
+  sCmd.println("What?");
+}
+
+// This gets set as the null handler, and gets called a blank line is received.
+void blankLine() {
+  Serial.println("No input.");
 }

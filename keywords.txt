@@ -2,15 +2,16 @@
 # Datatypes (KEYWORD1)
 #######################################
 
-SerialCommand KEYWORD1
+StreamCommand KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
+setStream         KEYWORD2
 addCommand        KEYWORD2
 setDefaultHandler KEYWORD2
-readSerial        KEYWORD2
+readStream        KEYWORD2
 clearBuffer       KEYWORD2
 next              KEYWORD2
 

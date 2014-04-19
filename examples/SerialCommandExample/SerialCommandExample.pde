@@ -17,7 +17,9 @@ void setup() {
 
   Serial.begin(9600);
 
- sCmd.setStream(&Serial);           // Use Serial port
+ sCmd.setStream(&Serial);           // Use Serial port, in this case, not needed, as Serial is the default
+ //sCmd.setStream(&Serial1);         // Use Serial1 port for Arduino Mega, for instance
+ 
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("ON",    LED_on);          // Turns LED on
   sCmd.addCommand("OFF",   LED_off);         // Turns LED off

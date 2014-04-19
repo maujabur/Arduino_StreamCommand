@@ -5,12 +5,14 @@
  * Copyright (C) 2014 Mauricio Jabur
  * 
  * SerialCommand:
+ * Copyright (C) 2014 Craig Versek
  * Copyright (C) 2012 Stefan Rado
  * Copyright (C) 2011 Steven Cogswell <steven.cogswell@gmail.com>
  *                    http://husks.wordpress.com
  * 
  * Version 20140419
  * 
+ * Updated for blank line support by DeKay, Feb 2014
  * This library is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -30,42 +32,75 @@
 /**
  * Constructor makes sure some things are set.
  */
-StreamCommand::StreamCommand()
-  : stream(&Serial),
-    commandList(NULL),
-    commandCount(0),
-    defaultHandler(NULL),
-    term('\r'),           // default terminator for commands, CR character
-    last(NULL)
+StreamCommand::StreamCommand(Stream *stream,
+                             byte maxCommands
+                            )
+  : _stream(stream),
+    _commandList(NULL),
+    _commandCount(0),
+    _defaultHandler(NULL),
+    _nullHandler(NULL),
+    _term('\r'),           // default terminator for commands, CR character
+    _last(NULL)
 {
-  strcpy(delim, " "); // strtok_r needs a null-terminated string
+  _maxCommands = maxCommands;
+  strcpy(_delim, " "); // strtok_r needs a null-terminated string
   clearBuffer();
+  //allocate memory for the command list
+  _commandList = (StreamCommandCallback *) calloc(maxCommands, sizeof(StreamCommandCallback));
 }
+/**
+ * Constructor makes sure some things are set.
+ */
+StreamCommand::StreamCommand(
+                             byte maxCommands
+                            )
+  : _stream(&Serial),
+    _commandList(NULL),
+    _commandCount(0),
+    _defaultHandler(NULL),
+    _nullHandler(NULL),
+    _term('\r'),           // default terminator for commands, CR character
+    _last(NULL)
+{
+  _maxCommands = maxCommands;
+  strcpy(_delim, " "); // strtok_r needs a null-terminated string
+  clearBuffer();
+   //allocate memory for the command list
+  _commandList = (StreamCommandCallback *) calloc(maxCommands, sizeof(StreamCommandCallback));
+ }
 
 /**
  * Selects which Stream will be used (e.g.a hardware or software serial port)
  */
-void StreamCommand::setStream(Stream *strm){
-  stream = strm;
+void StreamCommand::setStream(Stream *_stream){
+  _stream = _stream;
 }
 
-/**
+  /**
  * Adds a "command" and a handler function to the list of available commands.
  * This is used for matching a found token in the buffer, and gives the pointer
  * to the handler function to deal with it.
  */
-void StreamCommand::addCommand(const char *command, void (*function)()) {
+void StreamCommand::addCommand(const char *command, void(*function)()) {
   #ifdef STREAMCOMMAND_DEBUG
-    stream->print("Adding command (");
-    stream->print(commandCount);
-    stream->print("): ");
-    stream->println(command);
+    _stream->print("Adding command (");
+    _stream->print(_commandCount);
+    _stream->print("): ");
+    _stream->println(command);
   #endif
-
-  commandList = (StreamCommandCallback *) realloc(commandList, (commandCount + 1) * sizeof(StreamCommandCallback));
-  strncpy(commandList[commandCount].command, command, STREAMCOMMAND_MAXCOMMANDLENGTH);
-  commandList[commandCount].function = function;
-  commandCount++;
+  if (_commandCount >= _maxCommands){
+    #ifdef STREAMCOMMAND_DEBUG
+      _stream->println("Error: maxCommands was exceeded");
+    #endif
+    return;
+  }
+  //make a new callback
+  struct StreamCommandCallback new_callback;
+  new_callback.command  = command;
+  new_callback.function = function;
+  _commandList[_commandCount] = new_callback;
+  _commandCount++;
 }
 
 /**
@@ -73,9 +108,16 @@ void StreamCommand::addCommand(const char *command, void (*function)()) {
  * isn't in the list of commands.
  */
 void StreamCommand::setDefaultHandler(void (*function)(const char *)) {
-  defaultHandler = function;
+  _defaultHandler = function;
 }
 
+/**
+ * This sets up a handler to be called in the event that the user hits enter on a
+ * blank line
+ */
+void StreamCommand::setNullHandler(void (*function)()) {
+  _nullHandler = function;
+}
 
 /**
  * This checks the stream for characters, and assembles them into a buffer.
@@ -83,56 +125,58 @@ void StreamCommand::setDefaultHandler(void (*function)(const char *)) {
  * buffer for a prefix command, and calls handlers set up by addCommand() member
  */
 void StreamCommand::readStream() {
-  while (stream->available() > 0) {
-    char inChar = stream->read();   // Read single available character, there may be more waiting
+  while (_stream->available() > 0) {
+    char inChar = _stream->read();   // Read single available character, there may be more waiting
     #ifdef STREAMCOMMAND_DEBUG
-      stream->print(inChar);   // Echo back to stream
+      _stream->print(inChar);   // Echo back to stream
     #endif
 
-    if (inChar == term) {     // Check for the terminator (default '\r') meaning end of command
+    if (inChar == _term) {     // Check for the terminator (default '\r') meaning end of command
       #ifdef STREAMCOMMAND_DEBUG
-        stream->print("Received: ");
-        stream->println(buffer);
+        _stream->print("Received: ");
+        _stream->println(_buffer);
       #endif
 
-      char *command = strtok_r(buffer, delim, &last);   // Search for command at start of buffer
+      char *command = strtok_r(_buffer, _delim, &_last);   // Search for command at start of buffer
       if (command != NULL) {
         boolean matched = false;
-        for (int i = 0; i < commandCount; i++) {
+        for (int i = 0; i < _commandCount; i++) {
           #ifdef STREAMCOMMAND_DEBUG
-            stream->print("Comparing [");
-            stream->print(command);
-            stream->print("] to [");
-            stream->print(commandList[i].command);
-            stream->println("]");
+            _stream->print("Comparing [");
+            _stream->print(command);
+            _stream->print("] to [");
+            _stream->print(_commandList[i].command);
+            _stream->println("]");
           #endif
 
           // Compare the found command against the list of known commands for a match
-          if (strncmp(command, commandList[i].command, STREAMCOMMAND_MAXCOMMANDLENGTH) == 0) {
+          if (strcmp(command, _commandList[i].command) == 0) {
             #ifdef STREAMCOMMAND_DEBUG
-              stream->print("Matched Command: ");
-              stream->println(command);
+              _stream->print("Matched Command: ");
+              _stream->println(command);
             #endif
 
             // Execute the stored handler function for the command
-            (*commandList[i].function)();
+            (*_commandList[i].function)();
             matched = true;
             break;
           }
         }
-        if (!matched && (defaultHandler != NULL)) {
-          (*defaultHandler)(command);
+        if (!matched && (_defaultHandler != NULL)) {
+          (*_defaultHandler)(command);
         }
+      } else if (_nullHandler != NULL) {
+        (*_nullHandler)();
       }
       clearBuffer();
     }
     else if (isprint(inChar)) {     // Only printable characters into the buffer
-      if (bufPos < STREAMCOMMAND_BUFFER) {
-        buffer[bufPos++] = inChar;  // Put character into buffer
-        buffer[bufPos] = '\0';      // Null terminate
+      if (_bufPos < STREAMCOMMAND_BUFFER) {
+        _buffer[_bufPos++] = inChar;  // Put character into buffer
+        _buffer[_bufPos] = '\0';      // Null terminate
       } else {
         #ifdef STREAMCOMMAND_DEBUG
-          stream->println("Line buffer is full - increase STREAMCOMMAND_BUFFER");
+          _stream->println("Line buffer is full - increase STREAMCOMMAND_BUFFER");
         #endif
       }
     }
@@ -143,8 +187,8 @@ void StreamCommand::readStream() {
  * Clear the input buffer.
  */
 void StreamCommand::clearBuffer() {
-  buffer[0] = '\0';
-  bufPos = 0;
+  _buffer[0] = '\0';
+  _bufPos = 0;
 }
 
 /**
@@ -152,5 +196,12 @@ void StreamCommand::clearBuffer() {
  * Returns NULL if no more tokens exist.
  */
 char *StreamCommand::next() {
-  return strtok_r(NULL, delim, &last);
+  return strtok_r(NULL, _delim, &_last);
 }
+
+/**
+  * forward all writes to the encapsulated "port" Stream object
+  */
+ size_t StreamCommand::write(uint8_t val) {
+   return _stream->write(val);
+ }

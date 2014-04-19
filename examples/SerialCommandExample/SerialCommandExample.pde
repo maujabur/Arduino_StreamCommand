@@ -1,12 +1,15 @@
-// Demo Code for SerialCommand Library
+// Demo Code for StreamCommand Library
+// April 2014
+//
+// based on code by
 // Steven Cogswell
 // May 2011
 
-#include <SerialCommand.h>
+#include <StreamCommand.h>
 
 #define arduinoLED 13   // Arduino LED on board
 
-SerialCommand sCmd;     // The demo SerialCommand object
+StreamCommand sCmd;     // The demo SerialCommand object
 
 void setup() {
   pinMode(arduinoLED, OUTPUT);      // Configure the onboard LED for output
@@ -14,6 +17,7 @@ void setup() {
 
   Serial.begin(9600);
 
+ sCmd.setStream(&Serial);           // Use Serial port
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("ON",    LED_on);          // Turns LED on
   sCmd.addCommand("OFF",   LED_off);         // Turns LED off
@@ -24,7 +28,7 @@ void setup() {
 }
 
 void loop() {
-  sCmd.readSerial();     // We don't do much, just process serial commands
+  sCmd.readStream();     // We don't do much, just process serial commands
 }
 
 

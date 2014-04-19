@@ -1,4 +1,4 @@
-SreamCommand
+StreamCommand
 =============
 A Wiring/Arduino library to tokenize and parse commands received over a stream (serial port or others) 
 
